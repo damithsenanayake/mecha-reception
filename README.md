@@ -34,7 +34,7 @@ Depending on the conversational progression, one may need to alter system prompt
 - Code complexity
     - streamlining these queries require some engineering. For instance, rather than bulk generating output, one can stream the response and synthesize voice sentence by sentence. This usually means the voice synthesis output is done in smaller batches and the first sentence may be played while the others are being generated. 
 - Pipeline Management
-    - requires managing pipelines: conversational memory needs to be separately managed and handled
+    - requires managing pipelines: conversational memory needs to be separately managed and handled: Potential improvement is to use pipecat.
 
 ## Setup
 
