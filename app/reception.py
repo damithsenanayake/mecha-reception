@@ -5,24 +5,53 @@ import tempfile
 from openai import OpenAI
 from configparser import ConfigParser
 import json
-from langchain.memory import ConversationBufferMemory
 
 conf_parser = ConfigParser()
 
-conf_parser.read('./app/config.ini') # don't push api-key ;) 
+conf_parser.read("./app/config.ini")  # don't push api-key ;)
 
-client = OpenAI(api_key= conf_parser.get('API_KEY', 'openai') )
+client = OpenAI(api_key=conf_parser.get("API_KEY", "openai"))
 
 
 reception = Blueprint("main", __name__)
 
 form = {
-    'name': None,
-    'email': None,
-    'car_make': None,
-    'car_model': None,
-    'date_of_service': None
+    "name": None,
+    "email": None,
+    "car_make": None,
+    "car_model": None,
+    "service_date": None,
+    "service_month": None,
 }
+
+
+def update_memory(history, input, output):
+    """Simple implementation of a buffer memory
+
+    Args:
+        history (str): json string
+        input (str): user input
+        output (str): ai output
+    """
+    messages = json.loads(history)
+
+    messages.append({"human": input, "ai": output})
+
+    return json.dumps(messages)
+
+
+def get_memory_buffer(memory_string, k=3):
+    """get last k messages of the memory
+
+    Args:
+        memory_string (str): the json list string of the messages
+        k (int, optional): how many last messages to send. Defaults to 3.
+    """
+
+    messages = json.loads(memory_string)[-k:]
+
+    return "\n".join([f"human: {m['human']} \n ai: {m['ai']}" for m in messages])
+
 
 def parse_for_form_fields(message, form_data):
     prompt = f"""
@@ -41,16 +70,13 @@ def parse_for_form_fields(message, form_data):
 
     Respond with a JSON object.
     """
-    system_message = {
-        "role": "system",
-        "content": prompt
-    }
-    messages=[system_message, {"role":"user", "content":""}]
+    system_message = {"role": "system", "content": prompt}
+    messages = [system_message, {"role": "user", "content": ""}]
 
     response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  
-            messages=messages,
-        )
+        model="gpt-4-turbo",
+        messages=messages,
+    )
 
     try:
         response_text = response.choices[0].message.content.strip()
@@ -59,27 +85,31 @@ def parse_for_form_fields(message, form_data):
     except json.JSONDecodeError:
         print("Error parsing JSON. Returning empty data.")
         return {}
-    
+
+
 def is_form_complete(form):
     return all(value is not None for value in form.values())
 
+
 def transcribe_b64(b64_audio):
-    
-        audio_data = base64.b64decode(b64_audio)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
-            temp_audio.write(audio_data)
-            temp_audio_path = temp_audio.name
-    
-        with open(temp_audio_path, "rb") as audio_file:
-            response = client.audio.transcriptions.create(model = 'whisper-1', file = audio_file)
-        
-        os.unlink(temp_audio_path)
-  
-        return response.text
+    audio_data = base64.b64decode(b64_audio)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
+        temp_audio.write(audio_data)
+        temp_audio_path = temp_audio.name
+
+    with open(temp_audio_path, "rb") as audio_file:
+        response = client.audio.transcriptions.create(
+            model="whisper-1", file=audio_file
+        )
+
+    os.unlink(temp_audio_path)
+
+    return response.text
 
 
-@reception.route('/hello', methods=['GET'])
+@reception.route("/hello", methods=["GET"])
 def ping():
     return jsonify({"message": "Welcome to YoCah mechanics..."}), 200
 
@@ -90,48 +120,34 @@ def transcribe_audio():
         data = request.json
         if "audio" not in data:
             return jsonify({"error": "Missing 'audio' field"}), 400
-        
-        return jsonify({'transcript':transcribe_b64(data["audio"])})
+
+        return jsonify({"transcript": transcribe_b64(data["audio"])})
     except Exception as e:
         print(e)
         return jsonify({"error": str(e)}), 500
-    
-    
+
+
 @reception.route("/fill_form", methods=["POST"])
 def fill_json_form():
-    
+
     try:
         data = request.json
-        
 
-        try: 
-            history = session['memory']
+        try:
+            history = session["memory"]
         except:
-            history = ""
-            session['memory'] = history
+            history = "[]"
+            session["memory"] = history
 
-    
-        
-        try: 
-            form_data = session['form']
-        except: 
+        try:
+            form_data = session["form"]
+        except:
             form_data = form
-            session['form'] = form_data
+            session["form"] = form_data
         if "audio" not in data:
-            return jsonify({"error": "Missing 'audio' field"}), 400        
+            return jsonify({"error": "Missing 'audio' field"}), 400
         user_input = transcribe_b64(data["audio"])
-        system_message = {
-            "role": "system",
-            "content": f"""You are a helpful assistant. Your goal is to extract information to fill out the missing information in follwing given form. 
-            {json.dumps(form_data, indent=4)}.
-            provide an appropriate response to the user so that they will provide necessary missing information.
-            Be courteous and engaging. 
-            If the form is complete, finish the conversation with a greeting. 
-            
-            Conversation Buffer: {history}
-            
-            """
-        }
+
         extracted_info = parse_for_form_fields(user_input, form_data)
         print(f"\nExtracted Info: {json.dumps(extracted_info, indent=4)}")
 
@@ -140,42 +156,56 @@ def fill_json_form():
                 form_data[key] = extracted_info[key]
 
         print(f"Updated Form: {json.dumps(form_data, indent=4)}")
-        user_message = {
-            "role": "user",
-            "content": user_input
-        }
+
+        finish_convo = is_form_complete(form_data)
+
+        user_message = {"role": "user", "content": user_input}
+
+        if not finish_convo:
+            system_message = {
+                "role": "system",
+                "content": f"""You are a helpful assistant. Your goal is to extract information to fill out the missing information in follwing given form. 
+                {json.dumps(form_data, indent=4)}.
+                provide an appropriate response to the user so that they will provide necessary missing information.
+                Be courteous and engaging. 
+                If the form is complete, finish the conversation with a greeting. 
+                
+                Conversation Buffer: {get_memory_buffer(history)}
+                
+                """,
+            }
+        else:
+            system_message = {
+                "role": "system",
+                "content": f"""You were carrying on a conversation to try and fill a form with a user. 
+                The form is now complete. Please end the conversation with an appropriate response. 
+                Chat Buffer: 
+                {get_memory_buffer(history)}
+                """,
+            }
+
         messages = [system_message, user_message]
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4",  
+                model="gpt-4",
                 messages=messages,
             )
             resp_text = response.choices[0].message.content
-            
-            history += f"""
-            
-            human: {user_input}
-            ai: {resp_text}
-            
-            """
-            aud_resp =  client.audio.speech.create(
-                model="tts-1",
-                voice="alloy",
-                input=resp_text
+
+            history = update_memory(history, user_input, resp_text)
+            aud_resp = client.audio.speech.create(
+                model="tts-1", voice="alloy", input=resp_text
             )
-            
+
             audio_content = aud_resp.content
 
-            audio_b64 = base64.b64encode(audio_content).decode('utf-8')
-            
-            return jsonify({'audio':audio_b64, 'form_complete':is_form_complete(form_data)})
-                  
-        
+            audio_b64 = base64.b64encode(audio_content).decode("utf-8")
+
+            return jsonify({"audio": audio_b64, "form_complete": finish_convo})
+
         except Exception as e:
             print(f"Error occurred: {e}")
     except Exception as e:
-        
+
         return jsonify({"error": str(e)}), 500
-        
-        

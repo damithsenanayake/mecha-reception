@@ -68,7 +68,7 @@
                 success: function(response) {
                     playAudio(response.audio);
                     if (response.form_complete){
-                        $("#recordButton").disable();
+                        $("#recordButton").prop('disabled', true);
                     }
                 },
                 error: function(err) {
