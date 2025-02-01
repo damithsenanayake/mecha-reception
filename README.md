@@ -45,7 +45,14 @@ $ git clone https://github.com/damithsenanayake/mecha-reception.git
 $ cd MECHA-RECEPTION
 ```
 
-Create a virtual environment
+Create the file `/path/to/repo/MECHA-RECEPTION/app/config.ini` with following content.
+
+```
+[API_KEY]
+openai = your_api_key
+```
+
+Create a virtual environment.
 
 ```
 python3 -m venv env
