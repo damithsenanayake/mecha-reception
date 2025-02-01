@@ -1,10 +1,12 @@
-from flask import Blueprint, jsonify, request, stream_with_context, Response
+from flask import Blueprint, jsonify, request, session
 import base64
 import os
 import tempfile
 from openai import OpenAI
 from configparser import ConfigParser
 import json
+from langchain.memory import ConversationBufferMemory
+
 conf_parser = ConfigParser()
 
 conf_parser.read('./app/config.ini') # don't push api-key ;) 
@@ -100,30 +102,48 @@ def fill_json_form():
     
     try:
         data = request.json
+        
+
+        try: 
+            history = session['memory']
+        except:
+            history = ""
+            session['memory'] = history
+
+    
+        
+        try: 
+            form_data = session['form']
+        except: 
+            form_data = form
+            session['form'] = form_data
         if "audio" not in data:
             return jsonify({"error": "Missing 'audio' field"}), 400        
         user_input = transcribe_b64(data["audio"])
         system_message = {
             "role": "system",
             "content": f"""You are a helpful assistant. Your goal is to extract information to fill out the missing information in follwing given form. 
-            {json.dumps(form, indent=4)}.
-            provide an appropriate response to the user so that they will provide necessary missing information. Be courteous and engaging. If the form is complete, finish the conversation with a greeting. 
+            {json.dumps(form_data, indent=4)}.
+            provide an appropriate response to the user so that they will provide necessary missing information.
+            Be courteous and engaging. 
+            If the form is complete, finish the conversation with a greeting. 
+            
+            Conversation Buffer: {history}
             
             """
         }
-        extracted_info = parse_for_form_fields(user_input, form)
+        extracted_info = parse_for_form_fields(user_input, form_data)
         print(f"\nExtracted Info: {json.dumps(extracted_info, indent=4)}")
 
-        for key in form:
-            if form[key] is None and extracted_info.get(key):
-                form[key] = extracted_info[key]
+        for key in form_data:
+            if form_data[key] is None and extracted_info.get(key):
+                form_data[key] = extracted_info[key]
 
-        print(f"Updated Form: {json.dumps(form, indent=4)}")
+        print(f"Updated Form: {json.dumps(form_data, indent=4)}")
         user_message = {
             "role": "user",
             "content": user_input
         }
-
         messages = [system_message, user_message]
 
         try:
@@ -133,6 +153,12 @@ def fill_json_form():
             )
             resp_text = response.choices[0].message.content
             
+            history += f"""
+            
+            human: {user_input}
+            ai: {resp_text}
+            
+            """
             aud_resp =  client.audio.speech.create(
                 model="tts-1",
                 voice="alloy",
@@ -143,7 +169,7 @@ def fill_json_form():
 
             audio_b64 = base64.b64encode(audio_content).decode('utf-8')
             
-            return jsonify({'audio':audio_b64})
+            return jsonify({'audio':audio_b64, 'form_complete':is_form_complete(form_data)})
                   
         
         except Exception as e:

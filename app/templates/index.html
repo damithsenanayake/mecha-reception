@@ -67,6 +67,9 @@
                 data: JSON.stringify({ 'audio': base64str }),
                 success: function(response) {
                     playAudio(response.audio);
+                    if (response.form_complete){
+                        $("#recordButton").disable();
+                    }
                 },
                 error: function(err) {
                     console.error('Error sending audio: ', err);
