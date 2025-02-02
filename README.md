@@ -72,3 +72,7 @@ python -m app.app
 ```
 
 A simple web interface is provided at `http://127.0.0.1:5000`. Once browser is open, click and hold the button to record, and release to send the message. You may have to allow access to microphone on your device. 
+
+## Improvements
+
+Several possible improvements are listed in the issues of the git repo. 
