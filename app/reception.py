@@ -5,6 +5,7 @@ import tempfile
 from openai import OpenAI
 from configparser import ConfigParser
 import json
+import requests
 
 conf_parser = ConfigParser()
 
@@ -21,6 +22,7 @@ form = {
     "car_make": None,
     "car_model": None,
     "service_date": None,
+    "known_issues":None,
 }
 
 
@@ -61,10 +63,12 @@ def parse_for_form_fields(message, form_data):
     {json.dumps(form_data, indent=4)}
 
     Based on the user's input below, extract any relevant information and provide a JSON object with the following keys:
-    {f"\n -".join(list(form.keys()))}
+    {f"\n -".join(list(form_data.keys()))}
 
     If the information is missing or not clear from the user's input, leave the field as null.
-
+    
+    Important: service_date needs to be in the 'DD-MM-YYYY' format. 
+    
     User input: "{message}"
 
     Respond with a JSON object.
@@ -200,7 +204,17 @@ def fill_json_form():
             audio_content = aud_resp.content
 
             audio_b64 = base64.b64encode(audio_content).decode("utf-8")
-
+            if is_form_complete(form_data):
+                
+                schedule_response = requests.post(url="http://localhost:5000/schedule_service", json=form_data)
+                
+                if schedule_response.status_code == 201:
+                    
+                    pass
+                
+                else :
+                    print("scheduling error")
+                
             return jsonify({"audio": audio_b64, "form_complete": finish_convo})
 
         except Exception as e:
