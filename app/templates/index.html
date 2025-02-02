@@ -1,87 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Recorder</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <!-- Bootstrap JS -->
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.bundle.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schedule your appointment</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+  <!-- Font Awesome CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.bundle.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    .centered-container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    #recordButton {
+      border-radius: 50%;
+      width: 100px;
+      height: 100px;
+      font-size: 2em;
+      background-color:green;
+      border-color:green;
+    }
+  </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center">Audio Recorder</h1>
-        <div class="text-center">
-            <!-- Button to start and stop recording -->
-            <button id="recordButton" class="btn btn-primary" style="font-size: 24px; padding: 20px;">
-                Hold to Record
-            </button>
-        </div>
-    </div>
+  <div class="container centered-container">
+    <h1>Schedule your appointment</h1>
+    <p>Hold the button to record your message</p>
+    <button id="recordButton" class="btn btn-primary">
+      <i class="fas fa-phone"></i>
+    </button>
+  </div>
 
-    <script>
-        // Accessing the user's microphone
-        let mediaRecorder;
-        let audioChunks = [];
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
 
-        // Start recording when the button is pressed
-        $('#recordButton').on('mousedown', function() {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(function(stream) {
-                    mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.ondataavailable = function(event) {
-                        audioChunks.push(event.data);
-                    };
-                    mediaRecorder.onstop = function() {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        const reader = new FileReader();
-                        reader.onloadend = function() {
-                            const base64str = reader.result.split(',')[1];
-                            sendAudioToServer(base64str);
-                        };
-                        reader.readAsDataURL(audioBlob);
-                    };
-                    mediaRecorder.start();
-                })
-                .catch(function(error) {
-                    console.error('Error accessing microphone: ', error);
-                });
+    // Start recording when the button is pressed (mousedown)
+    $('#recordButton').on('mousedown', function() {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(function(stream) {
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = []; // Reset previous recordings
+          mediaRecorder.ondataavailable = function(event) {
+            audioChunks.push(event.data);
+          };
+          mediaRecorder.onstop = function() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const reader = new FileReader();
+            reader.onloadend = function() {
+              // Get base64 string without the initial data url part.
+              const base64str = reader.result.split(',')[1];
+              sendAudioToServer(base64str);
+            };
+            reader.readAsDataURL(audioBlob);
+          };
+          mediaRecorder.start();
+        })
+        .catch(function(error) {
+          console.error('Error accessing microphone: ', error);
         });
+    });
 
-        // Stop recording when the button is released
-        $('#recordButton').on('mouseup', function() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-        });
+    // Stop recording when the button is released (mouseup)
+    $('#recordButton').on('mouseup', function() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    });
 
-        // Send audio to server
-        function sendAudioToServer(base64str) {
-            $.ajax({
-                url: '/fill_form',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ 'audio': base64str }),
-                success: function(response) {
-                    playAudio(response.audio);
-                    if (response.form_complete){
-                        $("#recordButton").prop('disabled', true);
-                    }
-                },
-                error: function(err) {
-                    console.error('Error sending audio: ', err);
-                }
-            });
+    // Function to send the audio to the server as JSON.
+    function sendAudioToServer(base64str) {
+      $.ajax({
+        url: '/fill_form',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ 'audio': base64str }),
+        success: function(response) {
+          playAudio(response.audio);
+          if(response.form_complete){
+            $('#recordButton').prop('disabled', true);
+          }
+        },
+        error: function(err) {
+          console.error('Error sending audio: ', err);
         }
+      });
+    }
 
-        // Play the response audio
-        function playAudio(base64str) {
-            const audio = new Audio("data:audio/wav;base64," + base64str);
-            audio.play();
-        }
-    </script>
+    // Function to play the audio returned from the server.
+    function playAudio(base64str) {
+      const audio = new Audio("data:audio/wav;base64," + base64str);
+      audio.play();
+    }
+  </script>
 </body>
 </html>
