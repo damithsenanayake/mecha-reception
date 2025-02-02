@@ -21,7 +21,6 @@ form = {
     "car_make": None,
     "car_model": None,
     "service_date": None,
-    "service_month": None,
 }
 
 
