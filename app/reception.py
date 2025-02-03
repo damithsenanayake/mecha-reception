@@ -214,7 +214,7 @@ def fill_json_form():
                 
                 else :
                     print("scheduling error")
-                
+                    #TODO: add logic to get conflicts, available times and re-engage user for preference. 
             return jsonify({"audio": audio_b64, "form_complete": finish_convo})
 
         except Exception as e:
