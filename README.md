@@ -4,6 +4,8 @@ This is a POC for a scheduling system for a mechanic. The program will carry on 
 
 This simple implementation has a back-end Flask application, which has the main endpoint `/fill_form` which takes in an audio, parses the content in the audio for necessary information and adjusts conversation to ask user for missing information. 
 
+**Note**: The conversation currently only asks for date of service. Complex query routing can be implemented to retrieve available times from the calendar back end and get user preference. 
+
 ## Design
 
 The aim is to fill a predefined json form which contains information required for scheduling appointment (caller email to send the invite, desired date and time of service etc.) as well as other required information for the mechanic (rego, car make and model, issues etc.). 
