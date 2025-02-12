@@ -145,7 +145,7 @@ def fill_json_form():
         try:
             form_data = session["form"]
         except:
-            form_data = form
+            form_data = form.copy()
             session["form"] = form_data
         if "audio" not in data:
             return jsonify({"error": "Missing 'audio' field"}), 400
@@ -156,10 +156,12 @@ def fill_json_form():
 
         for key in form_data:
             if form_data[key] is None and extracted_info.get(key):
-                form_data[key] = extracted_info[key]
+                if extracted_info[key] is not None: 
+                    form_data[key] = extracted_info[key]
 
         print(f"Updated Form: {json.dumps(form_data, indent=4)}")
 
+        session['form'] = form_data
         finish_convo = is_form_complete(form_data)
 
         user_message = {"role": "user", "content": user_input}
@@ -200,6 +202,7 @@ def fill_json_form():
             aud_resp = client.audio.speech.create(
                 model="tts-1", voice="alloy", input=resp_text
             )
+            session['history'] = history
 
             audio_content = aud_resp.content
 
